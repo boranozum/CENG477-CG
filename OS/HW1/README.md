@@ -1,8 +1,6 @@
-<div align="center"><img src="app/src/main/res/mipmap-xhdpi/ic_launcher.png"></div>
 <h1 align="center">Bshell Implementation</h1>
 <p align="center"><strong>Introduction to Operating Systems - Homework 1</strong>
 </p>
-<div align="center"><img src="demo.gif"></img></div>
 <h2>About</h2>
 This homework is focused on OS processes and the communication between them. The aim is to implement a "bshell" which can run basic terminal commands ("touch", "echo", "grep" etc.), create pipes between commands and use file redirection, like a regular shell. The difference is, this bshell has the ability to run multiple commands at once including pipes and file redirection. 
 
