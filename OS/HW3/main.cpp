@@ -41,6 +41,7 @@ int main(int argc, char** argv)
                         for (string s: temp_vec)        // Vector manipulation for the prompt, handle ".."
                         {
                             if(s == "..") cur_directory.pop_back();
+                            else if(s == ".") continue;
                             else cur_directory.push_back(s);
                         }
                         if(temp_dir == 0) current_cluster = boot_sector.extended.RootCluster;
@@ -382,7 +383,7 @@ int main(int argc, char** argv)
                         if(temp_vec.empty()) createFile(disk,boot_sector.extended.RootCluster,boot_sector.extended.RootCluster,boot_sector,name,create_count);
                         else{
                             temp_cluster = findDirectory(disk,boot_sector.extended.RootCluster,boot_sector,temp_vec);
-                            createFile(disk,temp_cluster,temp_cluster   ,boot_sector,name,create_count);
+                            createFile(disk,temp_cluster,temp_cluster,boot_sector,name,create_count);
                         }
                     }
                 }

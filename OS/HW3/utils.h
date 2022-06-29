@@ -37,11 +37,12 @@ void tokenizer(string str, vector<string> & cur_directory);
 // FOR EXTRACTING THE LONG FILENAME FROM DIRECTORY ENTRY
 string directory_name_converter(FatFileLFN dir);
 
-unsigned char lfn_checksum(const char *pFCBName);
+unsigned char lfn_checksum(int create_count);
 
 uint16_t str_to_uint16(string str);
 
 void copyFat(FILE* disk, BPB_struct boot_sector);
 
+void updateModificationTime(FILE* disk, uint32_t cluster, BPB_struct boot_sector);
 
 #endif //HW3_UTILS_H

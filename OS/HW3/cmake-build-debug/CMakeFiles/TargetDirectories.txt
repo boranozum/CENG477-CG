@@ -1,3 +1,0 @@
-/home/boran/Documents/METU/OS/HW3/cmake-build-debug/CMakeFiles/HW3.dir
-/home/boran/Documents/METU/OS/HW3/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/boran/Documents/METU/OS/HW3/cmake-build-debug/CMakeFiles/rebuild_cache.dir

@@ -15,32 +15,60 @@ void moveDirectory(FILE* disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_
 
     j_dest *= boot_sector.BytesPerSector;
 
-    while(dest_location < j_dest){
+    vector<string> dir;
+    
+    if(src_cluster != boot_sector.extended.RootCluster){
+        updateModificationTime(disk,src_cluster,boot_sector);
+    }
+
+    if(dest_cluster != boot_sector.extended.RootCluster){
+        updateModificationTime(disk,dest_cluster, boot_sector);
+    }
+
+    if(name.length() > 13){
+
+        int index = 0;
+
+        while(index < name.length()){
+
+            string str;
+            if(name.length() - index > 13){
+                str = name.substr(index,13);
+            }
+            else{
+                str = name.substr(index,name.length()-index);
+            }
+
+            dir.push_back(str);
+
+            index+=13;
+        }
+    }
+
+    else{
+        dir.push_back(name);
+    }
+
+    int empty_count = 0;
+
+    while(empty_count != dir.size()+1){
         FatFileLFN* lfn = new FatFileLFN;
         readLFN(disk,lfn,dest_location,boot_sector);
 
-        if(lfn->attributes == 0) {
-            delete lfn;
-            break;
+        if(lfn->sequence_number == 0 || lfn->sequence_number == 0xE5){
+            empty_count++;
         }
 
-        dest_location += 32;
+        else{
+            empty_count = 0;
+        }
 
-        if(dest_location >= j_dest){
-            delete lfn;
+        dest_location+=32;
 
+        if(dest_location>=j_dest){
             uint32_t next_cluster = readFAT(disk,dest_cluster,boot_sector);
 
-            if(next_cluster < 268435448){
-                j_dest = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
-                    + (next_cluster+1-2) * boot_sector.SectorsPerCluster;
-                j_dest *= boot_sector.BytesPerSector;
-                dest_location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
-                                + (next_cluster-2) * boot_sector.SectorsPerCluster;
-                dest_location *= boot_sector.BytesPerSector;
-            }
-
-            else{
+            if(next_cluster == 268435448){
                 next_cluster = findEmptyCluster(disk,boot_sector);
 
                 uint32_t fat_location = boot_sector.ReservedSectorCount * boot_sector.BytesPerSector + dest_cluster*4;
@@ -48,14 +76,32 @@ void moveDirectory(FILE* disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_
                 fseek(disk,fat_location,SEEK_SET);
                 fwrite(&next_cluster,4,1,disk);
 
-                j_dest = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
-                         + (next_cluster+1-2) * boot_sector.SectorsPerCluster;
-                j_dest *= boot_sector.BytesPerSector;
-
                 dest_location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
-                                + (next_cluster-2) * boot_sector.SectorsPerCluster;
+                           + (next_cluster-2) * boot_sector.SectorsPerCluster;
+
                 dest_location *= boot_sector.BytesPerSector;
+
+                delete lfn;
+
+                break;
             }
+
+            else{
+                dest_location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
+                           + (next_cluster-2) * boot_sector.SectorsPerCluster;
+
+                dest_location *= boot_sector.BytesPerSector;
+
+                j_dest = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
+                    + (next_cluster+1-2) * boot_sector.SectorsPerCluster;
+
+                j_dest *= boot_sector.BytesPerSector;
+            }
+        }
+        if(empty_count == dir.size()+1){
+            dest_location -= 32*empty_count;
+            delete lfn;
+            break;
         }
     }
 
@@ -64,7 +110,7 @@ void moveDirectory(FILE* disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_
 
     j_src *= boot_sector.BytesPerSector;
 
-    if (src_location != boot_sector.extended.RootCluster) {
+    if (src_cluster != boot_sector.extended.RootCluster) {
         src_location += 64;
     }
 
@@ -77,6 +123,8 @@ void moveDirectory(FILE* disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_
 
         uint8_t lfn_count = lfn->sequence_number & 0x0F;
 
+        if(lfn->sequence_number == 0xE5) lfn_count = 0;
+
         vector<uint32_t> reset_locations;
 
         while (lfn_count > 0) {
@@ -84,17 +132,6 @@ void moveDirectory(FILE* disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_
             reset_locations.push_back(src_location);
 
             src_location += 32;
-            if (src_location >= j_src) {
-                src_cluster = readFAT(disk, src_cluster, boot_sector);
-                src_location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
-                           + (src_cluster - 2) * boot_sector.SectorsPerCluster;
-                src_location *= boot_sector.BytesPerSector;
-
-                j_src = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
-                    + (src_cluster + 1 - 2) * boot_sector.SectorsPerCluster;
-
-                j_src *= boot_sector.BytesPerSector;
-            }
 
             readLFN(disk, lfn, src_location, boot_sector);
             lfn_count--;
@@ -104,44 +141,33 @@ void moveDirectory(FILE* disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_
 
             for (uint32_t reset_location: reset_locations) {
                 FatFileLFN* lfn1 = new FatFileLFN;
+                FatFileLFN* e5 = new FatFileLFN;
                 readLFN(disk,lfn1,reset_location,boot_sector);
+                readLFN(disk,e5,reset_location,boot_sector);
 
+                e5->sequence_number = 0xE5;
                 fseek(disk, dest_location, SEEK_SET);
                 fwrite(lfn1,32,1,disk);
 
-                uint32_t z = 0;
-
                 fseek(disk, reset_location,SEEK_SET);
-                fwrite(&z,32,1,disk);
+                fwrite(e5,32,1,disk);
+
+                delete e5;
 
                 dest_location += 32;
-
-                if(dest_location >= j_dest){
-                    uint32_t next_cluster = findEmptyCluster(disk,boot_sector);
-
-                    uint32_t fat_location = boot_sector.ReservedSectorCount * boot_sector.BytesPerSector + dest_cluster*4;
-
-                    fseek(disk,fat_location,SEEK_SET);
-                    fwrite(&next_cluster,4,1,disk);
-
-                    j_dest = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
-                             + (next_cluster+1-2) * boot_sector.SectorsPerCluster;
-                    j_dest *= boot_sector.BytesPerSector;
-
-                    dest_location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
-                                    + (next_cluster-2) * boot_sector.SectorsPerCluster;
-                    dest_location *= boot_sector.BytesPerSector;
-                }
 
                 delete lfn1;
             }
 
             FatFile83* entry = new FatFile83;
+            FatFileLFN* e5 = new FatFileLFN;
             readEntry(disk,entry,src_location,boot_sector);
 
-            uint32_t z = 0;
+            e5->sequence_number = 0xE5;
             fseek(disk,src_location,SEEK_SET);
-            fwrite(&z,32,1,disk);
+            fwrite(e5,32,1,disk);
+
+            delete e5;
 
             uint32_t two_dot_location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
                                        + (entry->firstCluster-2) * boot_sector.SectorsPerCluster;
@@ -151,7 +177,9 @@ void moveDirectory(FILE* disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_
             FatFile83* entry1 = new FatFile83;
             readEntry(disk, entry1, two_dot_location+32, boot_sector);
 
-            entry1->firstCluster = dest_cluster;
+            entry1->firstCluster = dest_cluster & 0xFFFF;
+            entry1->eaIndex = (dest_cluster >> 16) & 0xFFFF;
+            if(dest_cluster == boot_sector.extended.RootCluster) entry1->firstCluster = 0;
 
             fseek(disk,two_dot_location+32,SEEK_SET);
             fwrite(entry1, 32, 1 ,disk);
@@ -200,32 +228,60 @@ void moveFile(FILE *disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_struc
 
     j_dest *= boot_sector.BytesPerSector;
 
-    while(dest_location < j_dest){
+    vector<string> dir;
+
+    if(src_cluster != boot_sector.extended.RootCluster){
+        updateModificationTime(disk,src_cluster,boot_sector);
+    }
+
+    if(dest_cluster != boot_sector.extended.RootCluster){
+        updateModificationTime(disk,dest_cluster, boot_sector);
+    }
+
+    if(name.length() > 13){
+
+        int index = 0;
+
+        while(index < name.length()){
+
+            string str;
+            if(name.length() - index > 13){
+                str = name.substr(index,13);
+            }
+            else{
+                str = name.substr(index,name.length()-index);
+            }
+
+            dir.push_back(str);
+
+            index+=13;
+        }
+    }
+
+    else{
+        dir.push_back(name);
+    }
+
+    int empty_count = 0;
+
+    while(empty_count != dir.size()+1){
         FatFileLFN* lfn = new FatFileLFN;
         readLFN(disk,lfn,dest_location,boot_sector);
 
-        if(lfn->attributes == 0) {
-            delete lfn;
-            break;
+        if(lfn->sequence_number == 0 || lfn->sequence_number == 0xE5){
+            empty_count++;
         }
 
-        dest_location += 32;
+        else{
+            empty_count = 0;
+        }
 
-        if(dest_location >= j_dest){
-            delete lfn;
+        dest_location+=32;
 
+        if(dest_location>=j_dest){
             uint32_t next_cluster = readFAT(disk,dest_cluster,boot_sector);
 
-            if(next_cluster < 268435448){
-                j_dest = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
-                         + (next_cluster+1-2) * boot_sector.SectorsPerCluster;
-                j_dest *= boot_sector.BytesPerSector;
-                dest_location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
-                                + (next_cluster-2) * boot_sector.SectorsPerCluster;
-                dest_location *= boot_sector.BytesPerSector;
-            }
-
-            else{
+            if(next_cluster == 268435448){
                 next_cluster = findEmptyCluster(disk,boot_sector);
 
                 uint32_t fat_location = boot_sector.ReservedSectorCount * boot_sector.BytesPerSector + dest_cluster*4;
@@ -233,14 +289,32 @@ void moveFile(FILE *disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_struc
                 fseek(disk,fat_location,SEEK_SET);
                 fwrite(&next_cluster,4,1,disk);
 
-                j_dest = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
-                         + (next_cluster+1-2) * boot_sector.SectorsPerCluster;
-                j_dest *= boot_sector.BytesPerSector;
-
                 dest_location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
                                 + (next_cluster-2) * boot_sector.SectorsPerCluster;
+
                 dest_location *= boot_sector.BytesPerSector;
+
+                delete lfn;
+
+                break;
             }
+
+            else{
+                dest_location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
+                                + (next_cluster-2) * boot_sector.SectorsPerCluster;
+
+                dest_location *= boot_sector.BytesPerSector;
+
+                j_dest = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
+                         + (next_cluster+1-2) * boot_sector.SectorsPerCluster;
+
+                j_dest *= boot_sector.BytesPerSector;
+            }
+        }
+        if(empty_count == dir.size()+1){
+            dest_location -= 32*empty_count;
+            delete lfn;
+            break;
         }
     }
 
@@ -249,7 +323,7 @@ void moveFile(FILE *disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_struc
 
     j_src *= boot_sector.BytesPerSector;
 
-    if (src_location != boot_sector.extended.RootCluster) {
+    if (src_cluster != boot_sector.extended.RootCluster) {
         src_location += 64;
     }
 
@@ -262,7 +336,7 @@ void moveFile(FILE *disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_struc
 
         uint8_t lfn_count = lfn->sequence_number & 0x0F;
 
-        int i = 1;
+        if(lfn->sequence_number == 0xE5) lfn_count = 0;
 
         vector<uint32_t> reset_locations;
 
@@ -271,17 +345,6 @@ void moveFile(FILE *disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_struc
             reset_locations.push_back(src_location);
 
             src_location += 32;
-            if (src_location >= j_src) {
-                src_cluster = readFAT(disk, src_cluster, boot_sector);
-                src_location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
-                               + (src_cluster - 2) * boot_sector.SectorsPerCluster;
-                src_location *= boot_sector.BytesPerSector;
-
-                j_src = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
-                        + (src_cluster + 1 - 2) * boot_sector.SectorsPerCluster;
-
-                j_src *= boot_sector.BytesPerSector;
-            }
 
             readLFN(disk, lfn, src_location, boot_sector);
             lfn_count--;
@@ -291,44 +354,33 @@ void moveFile(FILE *disk, uint32_t src_cluster, uint32_t dest_cluster, BPB_struc
 
             for (uint32_t reset_location: reset_locations) {
                 FatFileLFN* lfn1 = new FatFileLFN;
+                FatFileLFN* e5 = new FatFileLFN;
                 readLFN(disk,lfn1,reset_location,boot_sector);
+                readLFN(disk,e5,reset_location,boot_sector);
 
+                e5->sequence_number = 0xE5;
                 fseek(disk, dest_location, SEEK_SET);
                 fwrite(lfn1,32,1,disk);
 
-                uint32_t z = 0;
-
                 fseek(disk, reset_location,SEEK_SET);
-                fwrite(&z,32,1,disk);
+                fwrite(e5,32,1,disk);
+
+                delete e5;
 
                 dest_location += 32;
-
-                if(dest_location >= j_dest){
-                    uint32_t next_cluster = findEmptyCluster(disk,boot_sector);
-
-                    uint32_t fat_location = boot_sector.ReservedSectorCount * boot_sector.BytesPerSector + dest_cluster*4;
-
-                    fseek(disk,fat_location,SEEK_SET);
-                    fwrite(&next_cluster,4,1,disk);
-
-                    j_dest = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
-                             + (next_cluster+1-2) * boot_sector.SectorsPerCluster;
-                    j_dest *= boot_sector.BytesPerSector;
-
-                    dest_location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs*boot_sector.extended.FATSize)
-                                    + (next_cluster-2) * boot_sector.SectorsPerCluster;
-                    dest_location *= boot_sector.BytesPerSector;
-                }
 
                 delete lfn1;
             }
 
             FatFile83* entry = new FatFile83;
+            FatFileLFN* e5 = new FatFileLFN;
             readEntry(disk,entry,src_location,boot_sector);
 
-            uint32_t z = 0;
+            e5->sequence_number = 0xE5;
             fseek(disk,src_location,SEEK_SET);
-            fwrite(&z,32,1,disk);
+            fwrite(e5,32,1,disk);
+
+            delete e5;
 
             fseek(disk,dest_location,SEEK_SET);
             fwrite(entry,32,1,disk);

@@ -20,6 +20,11 @@ int32_t findDirectory(FILE* disk, int32_t cluster, BPB_struct & boot_sector, vec
 
         string dir = vec[vec_index];
 
+        if(dir == "."){
+            vec_index++;
+            continue;
+        }
+
         if (dir == "..") {
             FatFile83 *entry = new FatFile83;
 
@@ -27,6 +32,7 @@ int32_t findDirectory(FILE* disk, int32_t cluster, BPB_struct & boot_sector, vec
 
             if (entry->filename[1] == '.') {
                 res = entry->firstCluster;
+                res += (entry->eaIndex << 16) & 0xFFFF0000;
                 if (res == 0) res = boot_sector.extended.RootCluster;
             }
 
@@ -58,10 +64,7 @@ int32_t findDirectory(FILE* disk, int32_t cluster, BPB_struct & boot_sector, vec
 
         uint8_t lfn_count = lfn->sequence_number & 0x0F;
 
-        if(lfn_count == 0) {
-            delete lfn;
-            return -1;
-        }
+        if(lfn->sequence_number == 0xE5) lfn_count = 0;
 
         while (lfn_count > 0) {
             str = directory_name_converter(*lfn) + str;
@@ -89,6 +92,7 @@ int32_t findDirectory(FILE* disk, int32_t cluster, BPB_struct & boot_sector, vec
             readEntry(disk, entry, location, boot_sector);
 
             res = entry->firstCluster;
+            res += (entry->eaIndex << 16) & 0xFFFF0000;
             vec_index++;
 
             location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
@@ -130,32 +134,32 @@ int32_t findDirectory(FILE* disk, int32_t cluster, BPB_struct & boot_sector, vec
     return res;
 }
 
-uint16_t findEmptyCluster(FILE *disk, BPB_struct boot_sector) {
+int findEmptyCluster(FILE *disk, BPB_struct boot_sector) {
 
     uint32_t location = boot_sector.ReservedSectorCount*boot_sector.BytesPerSector;
     fseek(disk,location,SEEK_SET);
 
-    uint32_t *entry = new uint32_t;
+    uint32_t entry;
 
-    uint16_t res = 0;
+    int res = 0;
 
     while(res <= 101590){
-        fread(entry,4,1,disk);
+        fread(&entry,4,1,disk);
 
-        if(*entry == 0){
+        if(entry == 0){
 
-            *entry = 268435448;
+            entry = 268435448;
 
             fseek(disk,location+res*4,SEEK_SET);
-            fwrite(entry,4,1,disk);
+            fwrite(&entry,4,1,disk);
 
-            delete entry;
+        
             return res;
         }
         res++;
     }
 
-    delete entry;
+    
     return 0;
 }
 
@@ -178,6 +182,11 @@ int32_t findFile(FILE *disk, int32_t cluster, BPB_struct boot_sector, vector<str
 
         string dir = path[vec_index];
 
+        if(dir == "."){
+            vec_index++;
+            continue;
+        }
+
         if (dir == "..") {
             FatFile83 *entry = new FatFile83;
 
@@ -185,6 +194,7 @@ int32_t findFile(FILE *disk, int32_t cluster, BPB_struct boot_sector, vector<str
 
             if (entry->filename[1] == '.') {
                 res = entry->firstCluster;
+                res += (entry->eaIndex << 16) & 0xFFFF0000;
                 if (res == 0) res = boot_sector.extended.RootCluster;
             }
 
@@ -216,9 +226,8 @@ int32_t findFile(FILE *disk, int32_t cluster, BPB_struct boot_sector, vector<str
 
         uint8_t lfn_count = lfn->sequence_number & 0x0F;
 
-        if(lfn_count == 0) {
-            delete lfn;
-            return -1;
+        if(lfn->sequence_number == 0xE5) {
+            lfn_count = 0;
         }
 
         while (lfn_count > 0) {
@@ -247,6 +256,7 @@ int32_t findFile(FILE *disk, int32_t cluster, BPB_struct boot_sector, vector<str
             readEntry(disk, entry, location, boot_sector);
 
             res = entry->firstCluster;
+            res += (entry->eaIndex << 16) & 0xFFFF0000;
             vec_index++;
 
             location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)

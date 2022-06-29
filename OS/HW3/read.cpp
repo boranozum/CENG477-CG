@@ -30,17 +30,17 @@ void readDirectory(FILE *disk, uint32_t cluster, BPB_struct &boot_sector, bool a
 
         string str;
 
-
         FatFileLFN* lfn = new FatFileLFN;
 
         readLFN(disk,lfn,location,boot_sector);
 
         uint8_t lfn_count = lfn->sequence_number & 0x0F;
 
-        if(lfn_count == 0) {
-            delete lfn;
-            return;
+        if(lfn_count == 0 || lfn->sequence_number == 0xE5) {
+            location += 32;
+            lfn_count = 0;
         }
+
 
         while (lfn_count > 0){
             str = directory_name_converter(*lfn) + str;

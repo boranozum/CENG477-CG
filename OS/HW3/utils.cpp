@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "read.h"
 
 void parser(command &cmd){
 
@@ -104,15 +105,16 @@ string directory_name_converter(FatFileLFN dir) {
     return s;
 }
 
-unsigned char lfn_checksum(const char *pFCBName)
+unsigned char lfn_checksum(int create_count)
 {
-    int i;
+    int i,j = 0;
     unsigned char sum = 0;
+    unsigned char pFCBName[11] = {'~',create_count,32,32,32,32,32,32,32,32,32};
 
     for (i = 11; i; i--)
-        sum = ((sum & 1) << 7) + (sum >> 1) + *pFCBName++;
+        sum = ((sum & 1) << 7) + (sum >> 1) + pFCBName[j++];
 
-    return sum;
+    return sum; 
 }
 
 uint16_t str_to_uint16(string str) {
@@ -138,20 +140,150 @@ void copyFat(FILE *disk, BPB_struct boot_sector) {
 
     uint32_t j = 0;
 
-    while (j<fat_size_in_bytes){
+    char buffer[406528];
 
-        uint32_t temp;
+    fseek(disk,location,SEEK_SET);
+    fread(buffer,406528,1,disk);
 
-        fseek(disk,location,SEEK_SET);
-        fread(&temp,4,1,disk);
-
-        for (int i = 0; i < boot_sector.NumFATs-1; ++i) {
-            uint32_t location1 = location + fat_size_in_bytes;
-            fseek(disk,location1,SEEK_SET);
-            fwrite(&temp,4,1,disk);
-        }
-
-        j+=4;
-        location+=4;
+    for (int i = 0; i < boot_sector.NumFATs-1; ++i) {
+        uint32_t location1 = location + fat_size_in_bytes;
+        fseek(disk,location1,SEEK_SET);
+        fwrite(buffer,406528,1,disk);
     }
 }
+
+void updateModificationTime(FILE* disk, uint32_t cluster, BPB_struct boot_sector){
+    
+    uint32_t location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
+                        + (cluster - 2) * boot_sector.SectorsPerCluster;
+    location *= boot_sector.BytesPerSector;
+
+    FatFile83* entry = new FatFile83;
+
+    readEntry(disk,entry,location+32,boot_sector);
+
+    uint32_t parent_cluster = entry->firstCluster + ((entry->eaIndex << 16) & 0xFFFF0000);
+
+    if(parent_cluster == 0) parent_cluster = boot_sector.extended.RootCluster;
+
+    time_t t = time(0);
+    tm* n = localtime(&t);
+
+    string str = bitset<5>(n->tm_hour).to_string();
+    str += bitset<6>(n->tm_min).to_string();
+    str += bitset<5>(n->tm_sec).to_string();
+
+    uint16_t creation = str_to_uint16(str);
+
+    entry->modifiedTime = creation;
+    //entry->lastAccessTime = creation;
+
+    str = bitset<7>(n->tm_year-1980).to_string();
+    str += bitset<4>(n->tm_mon).to_string();
+    str += bitset<5>(n->tm_mday).to_string();
+
+    creation = str_to_uint16(str);
+
+    entry->modifiedDate = creation;
+
+    fseek(disk,location+32,SEEK_SET);
+    fwrite(entry,32,1,disk);
+
+    location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
+                        + (parent_cluster - 2) * boot_sector.SectorsPerCluster;
+    location *= boot_sector.BytesPerSector;
+
+    uint32_t j = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
+                 + (parent_cluster + 1 - 2) * boot_sector.SectorsPerCluster;
+
+    j *= boot_sector.BytesPerSector;
+
+    delete entry;
+
+    while(location < j){
+
+        FatFileLFN* lfn = new FatFileLFN;
+        readEntry(disk, lfn, location, boot_sector);
+
+        uint8_t lfn_count = lfn->sequence_number & 0x0F;
+
+        if(lfn_count == 0 || lfn->sequence_number == 0xE5) {
+            location += 32;
+
+            if (location >= j) {
+                uint32_t res = readFAT(disk, res, boot_sector);
+
+                location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
+                        + (res - 2) * boot_sector.SectorsPerCluster;
+                location *= boot_sector.BytesPerSector;
+
+                //bool found = false;
+                j = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
+                    + (res + 1 - 2) * boot_sector.SectorsPerCluster;
+
+                j *= boot_sector.BytesPerSector;
+            }
+        }
+
+        else{
+            location += 32*lfn_count;
+
+            FatFile83* entry = new FatFile83;
+
+            readEntry(disk, entry, location, boot_sector);
+
+            if(entry->firstCluster == cluster){
+                time_t t = time(0);
+                tm* n = localtime(&t);
+
+                string str = bitset<5>(n->tm_hour).to_string();
+                str += bitset<6>(n->tm_min).to_string();
+                str += bitset<5>(n->tm_sec).to_string();
+
+                uint16_t creation = str_to_uint16(str);
+
+                entry->modifiedTime = creation;
+                //entry->lastAccessTime = creation;
+
+                str = bitset<7>(n->tm_year-1980).to_string();
+                str += bitset<4>(n->tm_mon).to_string();
+                str += bitset<5>(n->tm_mday).to_string();
+
+                creation = str_to_uint16(str);
+
+                entry->modifiedDate = creation;
+
+                fseek(disk,location,SEEK_SET);
+                fwrite(entry,32,1,disk);
+
+                delete entry;
+                delete lfn;
+
+                return; 
+            }
+
+            else{
+                location += 32;
+
+                if (location >= j) {
+                    uint32_t res = readFAT(disk, res, boot_sector);
+
+                    location = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
+                            + (res - 2) * boot_sector.SectorsPerCluster;
+                    location *= boot_sector.BytesPerSector;
+
+                    //bool found = false;
+                    j = (boot_sector.ReservedSectorCount + boot_sector.NumFATs * boot_sector.extended.FATSize)
+                        + (res + 1 - 2) * boot_sector.SectorsPerCluster;
+
+                    j *= boot_sector.BytesPerSector;
+                }
+            }
+
+            delete entry;
+        }
+
+        delete lfn;
+    }
+}
+

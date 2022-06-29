@@ -1,4 +1,0 @@
-/snap/clion/193/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/snap/clion/193/bin/ninja/linux/ninja -G Ninja -S /home/boran/Documents/METU/OS/HW3 -B /home/boran/Documents/METU/OS/HW3/cmake-build-debug
--- Configuring done
--- Generating done
--- Build files have been written to: /home/boran/Documents/METU/OS/HW3/cmake-build-debug
