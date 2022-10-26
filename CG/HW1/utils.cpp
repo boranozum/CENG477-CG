@@ -1,4 +1,5 @@
 #include "utils.h"
+#include <iostream>
 
 float dotProduct(parser::Vec3f vec1, parser::Vec3f vec2){
 
@@ -16,7 +17,7 @@ parser::Vec3f crossProduct(parser::Vec3f vec1, parser::Vec3f vec2){
     parser::Vec3f res;
 
     res.x = vec1.y*vec2.z - vec1.z*vec2.y;
-    res.y = vec1.x*vec2.z - vec1.z*vec2.x;
+    res.y = -(vec1.x*vec2.z - vec1.z*vec2.x);
     res.z = vec1.x*vec2.y - vec1.y*vec2.x;
 
     return res;
@@ -37,22 +38,19 @@ parser::Vec3f normalize(parser::Vec3f vec){
 
 parser::Vec3f vecSum(parser::Vec3f vec1, float scalar1, parser::Vec3f vec2, float scalar2){
 
-    parser::Vec3f lhs;
-    parser::Vec3f rhs;
+    vec1.x *= scalar1;
+    vec1.y *= scalar1;
+    vec1.z *= scalar1;
 
-    lhs.x *= scalar1;
-    lhs.y *= scalar1;
-    lhs.z *= scalar1;
-
-    rhs.x *= scalar2;
-    rhs.y *= scalar2;
-    rhs.z *= scalar2;
+    vec2.x *= scalar2;
+    vec2.y *= scalar2;
+    vec2.z *= scalar2;
 
     parser::Vec3f res;
 
-    res.x = lhs.x + rhs.x;
-    res.y = lhs.y + rhs.y;
-    res.z = lhs.z + rhs.z;
+    res.x = vec1.x + vec2.x;
+    res.y = vec1.y + vec2.y;
+    res.z = vec1.z + vec2.z;
 
     return res;
 }
@@ -61,9 +59,9 @@ Ray spawnRay(int i, int j, parser::Camera camera){
 
     parser::Vec3f w;
 
-    w.x = -camera.gaze.x;
-    w.y = -camera.gaze.y;
-    w.z = -camera.gaze.z;
+    w.x = -1*camera.gaze.x;
+    w.y = -1*camera.gaze.y;
+    w.z = -1*camera.gaze.z;
 
     parser::Vec3f u = crossProduct(camera.up, w);
 
@@ -85,7 +83,10 @@ Ray spawnRay(int i, int j, parser::Camera camera){
     Ray ray;
     
     ray.origin = camera.position;
-    ray.direction = normalize(vecSum(s,1,camera.position,-1));
+    ray.direction = vecSum(s,1,camera.position,-1);
+
+    //std::cout << s_u << std::endl;
+    //std::cout << ray.direction.x << " " << ray.direction.y << " " << ray.direction.z << std::endl;  
 
     return ray;
 }
@@ -94,9 +95,11 @@ float sphereIntersect(parser::Vec3f center, float radius, Ray ray){
 
     float B = 2 * dotProduct(ray.direction, vecSum(ray.origin,1,center,-1));
     float A = dotProduct(ray.direction,ray.direction);
-    float C = dotProduct(vecSum(ray.origin,1,center,-1), vecSum(ray.origin,1,center,-1));
+    float C = dotProduct(vecSum(ray.origin,1,center,-1), vecSum(ray.origin,1,center,-1))- (radius*radius);
 
     float disc = B*B-4*A*C;
+
+    //std::cout << ray.direction.x << std::endl;
 
     if(disc < 0) return -1;
 

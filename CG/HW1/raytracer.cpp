@@ -31,7 +31,7 @@ int main(int argc, char* argv[])
         {   0,   0,   0 },  // Black
     };
 
-    int width = 640, height = 480;
+    int width = scene.cameras[0].image_width, height = scene.cameras[0].image_height;
     int columnWidth = width / 8;
 
     unsigned char* image = new unsigned char [width * height * 3];
@@ -41,9 +41,9 @@ int main(int argc, char* argv[])
     {
         for (int x = 0; x < width; ++x)
         {
-            Ray ray = spawnRay(y,x,scene.cameras[0]);
+            Ray ray = spawnRay(x,y,scene.cameras[0]);
 
-            float t = sphereIntersect(scene.vertex_data[scene.spheres[0].center_vertex_id+1], scene.spheres[0].radius, ray);
+            float t = sphereIntersect(scene.vertex_data[scene.spheres[0].center_vertex_id-1], scene.spheres[0].radius, ray);
 
             std::cout << t << std::endl;
 
@@ -60,6 +60,7 @@ int main(int argc, char* argv[])
             }
         }
     }
+
 
     write_ppm("test.ppm", image, width, height);
 
