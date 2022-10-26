@@ -1,5 +1,5 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef _UTILS_H
+#define _UTILS_H
 
 #include <math.h>
 #include "parser.h"
@@ -21,6 +21,6 @@ parser::Vec3f vecSum(parser::Vec3f vec1, float scalar1, parser::Vec3f vec2, floa
 
 Ray spawnRay(int i, int j, parser::Camera camera);
 
-float sphereIntersect(parser::Sphere sphere, Ray ray);
+float sphereIntersect(parser::Vec3f center, float radius, Ray ray);
 
 #endif

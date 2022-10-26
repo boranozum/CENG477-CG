@@ -1,6 +1,7 @@
 #include <iostream>
 #include "parser.h"
 #include "ppm.h"
+#include "utils.h"
 
 typedef unsigned char RGB[3];
 
@@ -40,10 +41,23 @@ int main(int argc, char* argv[])
     {
         for (int x = 0; x < width; ++x)
         {
-            int colIdx = x / columnWidth;
-            image[i++] = BAR_COLOR[colIdx][0];
-            image[i++] = BAR_COLOR[colIdx][1];
-            image[i++] = BAR_COLOR[colIdx][2];
+            Ray ray = spawnRay(y,x,scene.cameras[0]);
+
+            float t = sphereIntersect(scene.vertex_data[scene.spheres[0].center_vertex_id+1], scene.spheres[0].radius, ray);
+
+            std::cout << t << std::endl;
+
+            if(t > 0){
+                image[i++] = 255;
+                image[i++] = 255;
+                image[i++] = 255;
+            }            
+
+            else{
+                image[i++] = 0;
+                image[i++] = 0;
+                image[i++] = 0;
+            }
         }
     }
 
