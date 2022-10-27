@@ -4,23 +4,25 @@
 #include <math.h>
 #include "parser.h"
 
+using namespace parser;
+
 typedef struct Ray{
-    parser::Vec3f origin;
-    parser::Vec3f direction;
+    Vec3f origin;
+    Vec3f direction;
 } Ray;
 
-float dotProduct(parser::Vec3f vec1, parser::Vec3f vec2);
+float dotProduct(Vec3f vec1, Vec3f vec2);
 
-float findLength(parser::Vec3f vec);
+float findLength(Vec3f vec);
 
-parser::Vec3f crossProduct(parser::Vec3f vec1, parser::Vec3f vec2);
+Vec3f crossProduct(Vec3f vec1, Vec3f vec2);
 
-parser::Vec3f normalize(parser::Vec3f vec);
+Vec3f normalize(Vec3f vec);
 
-parser::Vec3f vecSum(parser::Vec3f vec1, float scalar1, parser::Vec3f vec2, float scalar2);
+Vec3f vecSum(Vec3f vec1, float scalar1, Vec3f vec2, float scalar2);
 
-Ray spawnRay(int i, int j, parser::Camera camera);
+Ray spawnRay(int i, int j, Camera camera);
 
-float sphereIntersect(parser::Vec3f center, float radius, Ray ray);
+float sphereIntersect(Vec3f center, float radius, Ray ray);
 
 #endif

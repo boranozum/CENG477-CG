@@ -45,7 +45,6 @@ int main(int argc, char* argv[])
 
             float t = sphereIntersect(scene.vertex_data[scene.spheres[0].center_vertex_id-1], scene.spheres[0].radius, ray);
 
-            std::cout << t << std::endl;
 
             if(t > 0){
                 image[i++] = 255;
