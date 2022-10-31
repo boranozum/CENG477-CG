@@ -15,7 +15,7 @@ float findLength(Vec3f vec){        // To find a length of a vector
     return sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
 }
 
-Vec3f findSphereNormal(Vec3f center, Vec3f intersectionPoint ,float radius){
+Vec3f findSphereNormal(Vec3f center, Vec3f intersectionPoint){
     Vec3f res = vecSum(intersectionPoint,1,center,-1);
     res = normalize(res);
 
@@ -29,7 +29,7 @@ Vec3f findTriangleNormal(Vec3f a, Vec3f b, Vec3f c){
     Vec3f cmina = vecSum(c,1,a,-1);
     Vec3f bmina = vecSum(b,1,a,-1);
     
-    res = crossProduct(cmina,bmina);
+    res = crossProduct(bmina,cmina);
     res = normalize(res);
     
     return res;
@@ -200,35 +200,36 @@ Strike findStrike(Ray ray, Scene scene){           // To find intersections with
         float temp = sphereIntersect(sphere_center,radius,ray);
 
         if(temp > 0){
-            if(strike.t < 0){
+            if(strike.t < 0 || (strike.t > 0 && temp < strike.t)){
+                
                 strike.t = temp;
+                strike.material = scene.materials[spheres[i].material_id-1];
+
+                strike.intersectionPoint = findIntersectionPoint(ray, strike.t);
+
+                Vec3f surfaceNormal = findSphereNormal(sphere_center,strike.intersectionPoint);    
+
+                //cout << surfaceNormal.x << " " << surfaceNormal.y << " " << surfaceNormal.z << endl;
+                
+                Vec3f pixelColor = findAmbient(strike.material,scene.ambient_light);
+
+                for (size_t i = 0; i < scene.point_lights.size(); i++)
+                {
+                    Vec3f irradiance = findIrradiance(strike.intersectionPoint,scene.point_lights[i]);
+                    Vec3f diffuse = findDiffuse(irradiance,scene.point_lights[i], strike, surfaceNormal);
+                    Vec3f specular = findSpecular(irradiance,scene.point_lights[i], strike, surfaceNormal, ray);
+
+                    
+                    pixelColor = vecSum(pixelColor,1,vecSum(diffuse,1,specular,1),1);
+                }
+
+                // TODO: CHECK IF BETWEEN 0 255
+
+                strike.pixel.x = int(pixelColor.x+0.5);
+                strike.pixel.y = int(pixelColor.y+0.5);            
+                strike.pixel.z = int(pixelColor.z+0.5);  
+                
             }     
-            else if(strike.t > 0){
-                strike.t = min(strike.t,temp);
-            }
-
-            strike.material = scene.materials[spheres[i].material_id-1];
-
-            strike.intersectionPoint = findIntersectionPoint(ray, strike.t);
-
-            Vec3f surfaceNormal = findSphereNormal(sphere_center,strike.intersectionPoint,radius);    
-
-            Vec3f pixelColor = findAmbient(strike.material,scene.ambient_light);
-
-            for (size_t i = 0; i < scene.point_lights.size(); i++)
-            {
-                Vec3f irradiance = findIrradiance(strike.intersectionPoint,scene.point_lights[i]);
-                Vec3f diffuse = findDiffuse(irradiance,scene.point_lights[i], strike, surfaceNormal);
-                Vec3f specular = findSpecular(irradiance,scene.point_lights[i], strike, surfaceNormal, ray);
-
-                pixelColor = vecSum(pixelColor,1,vecSum(diffuse,1,specular,1),1);
-            }
-
-            // TODO: CHECK IF BETWEEN 0 255
-
-            strike.pixel.x = int(pixelColor.x);
-            strike.pixel.y = int(pixelColor.y);            
-            strike.pixel.z = int(pixelColor.z);            
         }
     }
     
@@ -242,54 +243,12 @@ Strike findStrike(Ray ray, Scene scene){           // To find intersections with
 
         if(temp_t_of_tri > 0){
 
-            if (strike.t < 0 ){
-                strike.t = temp_t_of_tri;
-            }
-            else if(strike.t > 0){
-                strike.t = min(strike.t,temp_t_of_tri);
-            }
-
-            strike.material = scene.materials[triangles[i].material_id-1];
+            if (strike.t < 0 || (strike.t > 0 && temp_t_of_tri < strike.t)){
             
-            strike.intersectionPoint = findIntersectionPoint(ray, strike.t);
-
-            Vec3f surfaceNormal = findTriangleNormal(a,b,c);
-
-            Vec3f pixelColor = findAmbient(strike.material,scene.ambient_light);
-
-            for (size_t i = 0; i < scene.point_lights.size(); i++)
-            {
-                Vec3f irradiance = findIrradiance(strike.intersectionPoint,scene.point_lights[i]);
-                Vec3f diffuse = findDiffuse(irradiance,scene.point_lights[i], strike, surfaceNormal);
-                Vec3f specular = findSpecular(irradiance,scene.point_lights[i], strike, surfaceNormal, ray);
-
-                pixelColor = vecSum(pixelColor,1,vecSum(diffuse,1,specular,1),1);
-            }
-
-            strike.pixel.x = int(pixelColor.x);
-            strike.pixel.y = int(pixelColor.y);            
-            strike.pixel.z = int(pixelColor.z);  
-        }
-    
-    }
-    
-    for (size_t i = 0; i < meshes.size(); i++){  
-        for (size_t j = 0; j < meshes[i].faces.size(); j++){
-            Vec3f a = scene.vertex_data[meshes[i].faces[j].v0_id-1];
-            Vec3f b = scene.vertex_data[meshes[i].faces[j].v1_id-1];
-            Vec3f c = scene.vertex_data[meshes[i].faces[j].v2_id-1];
-        
-            float temp_t_of_mesh = triangleIntersect(ray,a,b,c,ray.origin,ray.direction);
-            if(temp_t_of_mesh > 0){
-                if(strike.t < 0 ){
-                    strike.t = temp_t_of_mesh;
-                }     
-                else if(strike.t > 0){
-                    strike.t = min(strike.t,temp_t_of_mesh);
-                }
-
-                strike.material = scene.materials[meshes[i].material_id-1];
-
+                strike.t = temp_t_of_tri;
+            
+                strike.material = scene.materials[triangles[i].material_id-1];
+                
                 strike.intersectionPoint = findIntersectionPoint(ray, strike.t);
 
                 Vec3f surfaceNormal = findTriangleNormal(a,b,c);
@@ -305,12 +264,49 @@ Strike findStrike(Ray ray, Scene scene){           // To find intersections with
                     pixelColor = vecSum(pixelColor,1,vecSum(diffuse,1,specular,1),1);
                 }
 
-                strike.pixel.x = int(pixelColor.x);
-                strike.pixel.y = int(pixelColor.y);            
-                strike.pixel.z = int(pixelColor.z);  
+                strike.pixel.x = int(pixelColor.x+0.5);
+                strike.pixel.y = int(pixelColor.y+0.5);            
+                strike.pixel.z = int(pixelColor.z+0.5);  
+            }
+            
+        }
+    
+    }
+    
+    for (size_t i = 0; i < meshes.size(); i++){  
+        for (size_t j = 0; j < meshes[i].faces.size(); j++){
+            Vec3f a = scene.vertex_data[meshes[i].faces[j].v0_id-1];
+            Vec3f b = scene.vertex_data[meshes[i].faces[j].v1_id-1];
+            Vec3f c = scene.vertex_data[meshes[i].faces[j].v2_id-1];
+        
+            float temp_t_of_mesh = triangleIntersect(ray,a,b,c,ray.origin,ray.direction);
+            if(temp_t_of_mesh > 0){
+                if(strike.t < 0 || (strike.t > 0 && temp_t_of_mesh < strike.t)){
+                    strike.t = temp_t_of_mesh;
+
+                    strike.material = scene.materials[meshes[i].material_id-1];
+
+                    strike.intersectionPoint = findIntersectionPoint(ray, strike.t);
+
+                    Vec3f surfaceNormal = findTriangleNormal(a,b,c);
+
+                    Vec3f pixelColor = findAmbient(strike.material,scene.ambient_light);
+
+
+                    for (size_t i = 0; i < scene.point_lights.size(); i++){
+                        Vec3f irradiance = findIrradiance(strike.intersectionPoint,scene.point_lights[i]);
+                        Vec3f diffuse = findDiffuse(irradiance,scene.point_lights[i], strike, surfaceNormal);
+                        Vec3f specular = findSpecular(irradiance,scene.point_lights[i], strike, surfaceNormal, ray);
+
+                        pixelColor = vecSum(pixelColor,1,vecSum(diffuse,1,specular,1),1);
+                    }
+
+                    strike.pixel.x = int(pixelColor.x+0.5);
+                    strike.pixel.y = int(pixelColor.y+0.5);            
+                    strike.pixel.z = int(pixelColor.z+0.5);  
+                }
             }
         }
-        
     }
     
     return strike;
@@ -333,9 +329,9 @@ Vec3f findIntersectionPoint(Ray ray, float t){
 
 Vec3f findIrradiance(Vec3f intersectionPoint, PointLight pointLight){
     Vec3f res;
-    Vec3f distance = vecSum(intersectionPoint,-1,pointLight.position,1);
+    float distance = findLength(vecSum(intersectionPoint,-1,pointLight.position,1));
     
-    float distanceSquared = dotProduct(distance,distance); 
+    float distanceSquared = distance*distance; 
 
     if(distanceSquared != 0){
         res.x = pointLight.intensity.x/distanceSquared;
@@ -351,7 +347,10 @@ Vec3f findDiffuse(Vec3f irradiance, PointLight pointLight, Strike strike, Vec3f 
 
     L = normalize(L);
 
+
     float nl = dotProduct(surfaceNormal,L) >= 0 ? dotProduct(surfaceNormal,L) : 0;
+
+    
     Vec3f coeff = strike.material.diffuse;
     Vec3f res;
 
@@ -368,10 +367,11 @@ Vec3f findSpecular(Vec3f irradiance, PointLight pointLight, Strike strike, Vec3f
     Vec3f L = vecSum(pointLight.position,1,strike.intersectionPoint,-1);
     L = normalize(L);
     
-    Vec3f halfVec = vecSum(ray.direction,0.5,L,0.5);
+    Vec3f halfVec = vecSum(ray.direction, -0.5, L, 0.5);
+    
     float hn = dotProduct(surfaceNormal,halfVec) >= 0 ? dotProduct(surfaceNormal,halfVec) : 0;
     hn = pow(hn,strike.material.phong_exponent);
-    Vec3f coeff = strike.material.specular;
+    Vec3f coeff = strike.material.specular; 
 
     res.x = (coeff.x)*(irradiance.x*hn);
     res.y = (coeff.y)*(irradiance.y*hn);

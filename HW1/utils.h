@@ -51,7 +51,7 @@ Vec3f findDiffuse(Vec3f irradiance, PointLight pointLight, Strike strike, Vec3f 
 
 Vec3f findSpecular(Vec3f irradiance, PointLight pointLight, Strike strike, Vec3f surfaceNormal, Ray ray);
 
-Vec3f findSphereNormal(Vec3f center, Vec3f intersectionPoint ,float radius);
+Vec3f findSphereNormal(Vec3f center, Vec3f intersectionPoint);
 
 Vec3f findTriangleNormal(Vec3f a, Vec3f b, Vec3f c);
 

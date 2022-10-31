@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
         // Generating a ray for each pixel in the image
         for (int y = 0; y < height; ++y)
         {
+            cout << y << endl;
             for (int x = 0; x < width; ++x)
             {
                 Ray ray = spawnRay(x, y, scene.cameras[k]);
@@ -36,9 +37,10 @@ int main(int argc, char *argv[])
                 Strike strike = findStrike(ray, scene);
 
                 // Color assignment based on strike success
-                image[i++] = strike.pixel.x;
-                image[i++] = strike.pixel.y;
-                image[i++] = strike.pixel.z;
+                // MODIFY THIS
+                image[i++] = min(max(strike.pixel.x,0),255);
+                image[i++] = min(max(strike.pixel.y,0),255);
+                image[i++] = min(max(strike.pixel.z,0),255);
             }
         }
 
