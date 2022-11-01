@@ -366,9 +366,10 @@ Vec3f findSpecular(Vec3f irradiance, PointLight pointLight, Strike strike, Vec3f
     Vec3f res;
     Vec3f L = vecSum(pointLight.position,1,strike.intersectionPoint,-1);
     L = normalize(L);
-    
-    Vec3f halfVec = vecSum(ray.direction, -0.5, L, 0.5);
-    
+
+    Vec3f halfVec = vecSum(ray.direction, -1, L, 1);
+    halfVec = normalize(halfVec);
+
     float hn = dotProduct(surfaceNormal,halfVec) >= 0 ? dotProduct(surfaceNormal,halfVec) : 0;
     hn = pow(hn,strike.material.phong_exponent);
     Vec3f coeff = strike.material.specular; 
