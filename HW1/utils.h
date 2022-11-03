@@ -47,6 +47,8 @@ Vec3f findAmbient(Material material, Vec3f ambientLight);
 
 Strike findStrike(Ray ray, Scene scene);
 
+bool findShadowStrike(Ray ray, Scene scene);
+
 Vec3f findDiffuse(Vec3f irradiance, PointLight pointLight, Strike strike, Vec3f surfaceNormal);
 
 Vec3f findSpecular(Vec3f irradiance, PointLight pointLight, Strike strike, Vec3f surfaceNormal, Ray ray);
