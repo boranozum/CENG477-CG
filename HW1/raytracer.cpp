@@ -36,13 +36,13 @@ void* threadRoutine(void* args){
     // Generating a ray for each pixel in the image
     for (int y = y_val; y < y_val+y_size; ++y)
     {
-        cout << y << endl;
+        //cout << y << endl;
         for (int x = 0; x < width; ++x)
         {
             Ray ray = spawnRay(x, y, camera);
 
             // Checking whether the ray strikes with an object, assigns t with positive value for success or -1 for failure
-            Strike strike = findStrike(ray, scene);
+            Strike strike = findStrike(ray, scene,0);
 
             // Color assignment based on strike success
             // MODIFY THIS

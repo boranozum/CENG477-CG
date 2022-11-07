@@ -3,9 +3,9 @@
 
 using namespace std;
 
-float dotProduct(Vec3f vec1, Vec3f vec2){       // To find the dot product of two vectors
+float dotProduct(Vec3f &vec1, Vec3f &vec2){       // To find the dot product of two vectors
 
-    float res = vec1.x*vec2.x + vec1.y* vec2.y + vec1.z*vec2.z;
+    float res = (vec1.x)*(vec2.x) + (vec1.y)* (vec2.y) + (vec1.z)*(vec2.z);
 
     return res;
 }
@@ -35,7 +35,7 @@ Vec3f findTriangleNormal(Vec3f a, Vec3f b, Vec3f c){
     return res;
 }
 
-Vec3f crossProduct(Vec3f vec1, Vec3f vec2){     // To find the cross product of two vectors
+Vec3f crossProduct(Vec3f &vec1, Vec3f &vec2){     // To find the cross product of two vectors
     
     Vec3f res;
 
@@ -46,7 +46,7 @@ Vec3f crossProduct(Vec3f vec1, Vec3f vec2){     // To find the cross product of 
     return res;
 }
 
-Vec3f normalize(Vec3f vec){           // To normalize a vector
+Vec3f normalize(Vec3f &vec){           // To normalize a vector
 
     float length = findLength(vec);
 
@@ -59,26 +59,17 @@ Vec3f normalize(Vec3f vec){           // To normalize a vector
     return res;
 }
 
-Vec3f vecSum(Vec3f vec1, float scalar1, Vec3f vec2, float scalar2){     // Vector summation with scalar values
-
-    vec1.x *= scalar1;
-    vec1.y *= scalar1;
-    vec1.z *= scalar1;
-
-    vec2.x *= scalar2;
-    vec2.y *= scalar2;
-    vec2.z *= scalar2;
-
+Vec3f vecSum(Vec3f &vec1, float scalar1, Vec3f &vec2, float scalar2){     // Vector summation with scalar values
     Vec3f res;
 
-    res.x = vec1.x + vec2.x;
-    res.y = vec1.y + vec2.y;
-    res.z = vec1.z + vec2.z;
+    res.x = vec1.x*scalar1 + vec2.x*scalar2;
+    res.y = vec1.y*scalar1 + vec2.y*scalar2;
+    res.z = vec1.z*scalar1 + vec2.z*scalar2;
 
     return res;
 }
 
-Ray spawnRay(int i, int j, Camera camera){          // Ray generation
+Ray spawnRay(int i, int j, Camera &camera){          // Ray generation
 
     Vec3f w;
 
@@ -126,16 +117,17 @@ float determinantSolver3x3(std::vector<std::vector<float>> matrix){         // T
     return res;
 }
 
-float determinantSolver2x2(float a1, float a2, float b1, float b2){        // Determinant helper
+float determinantSolver2x2(float a1, float a2, float  b1, float  b2){        // Determinant helper
     return (a1*b2) - (a2*b1);
 }
     
 
-float sphereIntersect(Vec3f center, float radius, Ray ray){         // To implement sphere intersection formula
+float sphereIntersect(Vec3f &center, float  radius, Ray  &ray){         // To implement sphere intersection formula
 
-    float B = 2 * dotProduct(ray.direction, vecSum(ray.origin,1,center,-1));
+    Vec3f para = vecSum(ray.origin,1,center,-1);
+    float B = 2 * dotProduct(ray.direction, para);
     float A = dotProduct(ray.direction,ray.direction);
-    float C = dotProduct(vecSum(ray.origin,1,center,-1), vecSum(ray.origin,1,center,-1))- (radius*radius);
+    float C = dotProduct(para, para) - (radius*radius);
 
     float disc = B*B-4*A*C;
 
@@ -150,7 +142,7 @@ float sphereIntersect(Vec3f center, float radius, Ray ray){         // To implem
 }
 
 
-float triangleIntersect(Ray ray, Vec3f a, Vec3f b, Vec3f c, Vec3f o, Vec3f d){      // To implement triangular intersection formula
+float triangleIntersect(Ray &ray, Vec3f &a, Vec3f &b, Vec3f &c, Vec3f &o, Vec3f &d){      // To implement triangular intersection formula
 
     vector<vector<float>> a_matrix = {{a.x-b.x,a.x-c.x,d.x},
                                       {a.y-b.y,a.y-c.y,d.y},
@@ -184,7 +176,7 @@ float triangleIntersect(Ray ray, Vec3f a, Vec3f b, Vec3f c, Vec3f o, Vec3f d){  
 }
 
 
-Strike findStrike(Ray ray, Scene scene){           // To find intersections with spheres, triangles and meshes
+Strike findStrike(Ray &ray, Scene &scene, int recursionCount){           // To find intersections with spheres, triangles and meshes
     
     vector<Sphere> spheres = scene.spheres;
     vector<Triangle> triangles = scene.triangles;
@@ -210,12 +202,9 @@ Strike findStrike(Ray ray, Scene scene){           // To find intersections with
 
                 Vec3f surfaceNormal = findSphereNormal(sphere_center,strike.intersectionPoint);    
 
-                //cout << surfaceNormal.x << " " << surfaceNormal.y << " " << surfaceNormal.z << endl;
-                
                 Vec3f pixelColor = findAmbient(strike.material,scene.ambient_light);
 
-                for (size_t i = 0; i < scene.point_lights.size(); i++)
-                {
+                for (size_t i = 0; i < scene.point_lights.size(); i++){
                     Ray shadowRay;
                     shadowRay.origin = vecSum(strike.intersectionPoint,1,surfaceNormal,scene.shadow_ray_epsilon);
                     shadowRay.direction = vecSum(scene.point_lights[i].position,1,shadowRay.origin,-1);
@@ -224,14 +213,17 @@ Strike findStrike(Ray ray, Scene scene){           // To find intersections with
                         Vec3f irradiance = findIrradiance(strike.intersectionPoint, scene.point_lights[i]);
                         Vec3f diffuse = findDiffuse(irradiance, scene.point_lights[i], strike, surfaceNormal);
                         Vec3f specular = findSpecular(irradiance, scene.point_lights[i], strike, surfaceNormal, ray);
-
-                        pixelColor = vecSum(pixelColor,1,vecSum(diffuse,1,specular,1),1);
+                        Vec3f temp = vecSum(diffuse, 1, specular, 1);
+                        pixelColor = vecSum(pixelColor, 1, temp, 1);
                     }
-                    
-
                 }
-
-                // TODO: CHECK IF BETWEEN 0 255
+                if (strike.material.is_mirror && recursionCount < scene.max_recursion_depth){
+                    Ray reflection_ray = findReflectionRay(ray,surfaceNormal,strike.intersectionPoint,scene);
+                    Strike reflectedStrike = findStrike(reflection_ray,scene,recursionCount+1);
+                    pixelColor.x += reflectedStrike.pixel.x * strike.material.mirror.x;
+                    pixelColor.y += reflectedStrike.pixel.y * strike.material.mirror.y;
+                    pixelColor.z += reflectedStrike.pixel.z * strike.material.mirror.z;
+                }
 
                 strike.pixel.x = int(pixelColor.x+0.5);
                 strike.pixel.y = int(pixelColor.y+0.5);            
@@ -275,8 +267,16 @@ Strike findStrike(Ray ray, Scene scene){           // To find intersections with
                         Vec3f diffuse = findDiffuse(irradiance, scene.point_lights[i], strike, surfaceNormal);
                         Vec3f specular = findSpecular(irradiance, scene.point_lights[i], strike, surfaceNormal, ray);
 
-                        pixelColor = vecSum(pixelColor,1,vecSum(diffuse,1,specular,1),1);
+                        Vec3f temp = vecSum(diffuse,1,specular,1);
+                        pixelColor = vecSum(pixelColor,1,temp,1);
                     }
+                }
+                if (strike.material.is_mirror && recursionCount < scene.max_recursion_depth){
+                    Ray reflection_ray = findReflectionRay(ray,surfaceNormal,strike.intersectionPoint,scene);
+                    Strike reflectedStrike = findStrike(reflection_ray,scene,recursionCount+1);
+                    pixelColor.x += reflectedStrike.pixel.x * strike.material.mirror.x;
+                    pixelColor.y += reflectedStrike.pixel.y * strike.material.mirror.y;
+                    pixelColor.z += reflectedStrike.pixel.z * strike.material.mirror.z;
                 }
 
                 strike.pixel.x = int(pixelColor.x+0.5);
@@ -319,9 +319,18 @@ Strike findStrike(Ray ray, Scene scene){           // To find intersections with
                             Vec3f irradiance = findIrradiance(strike.intersectionPoint, scene.point_lights[i]);
                             Vec3f diffuse = findDiffuse(irradiance, scene.point_lights[i], strike, surfaceNormal);
                             Vec3f specular = findSpecular(irradiance, scene.point_lights[i], strike, surfaceNormal,ray);
-
-                            pixelColor = vecSum(pixelColor, 1, vecSum(diffuse, 1, specular, 1), 1);
+                            Vec3f tempvec = vecSum(diffuse, 1, specular, 1);
+                            pixelColor = vecSum(pixelColor, 1,tempvec, 1);
                         }
+                    }
+                    if (strike.material.is_mirror && recursionCount < scene.max_recursion_depth){
+                        cout << "THIS IS MIRROR" << endl;
+
+                        Ray reflection_ray = findReflectionRay(ray,surfaceNormal,strike.intersectionPoint,scene);
+                        Strike reflectedStrike = findStrike(reflection_ray,scene,recursionCount+1);
+                        pixelColor.x += reflectedStrike.pixel.x * strike.material.mirror.x;
+                        pixelColor.y += reflectedStrike.pixel.y * strike.material.mirror.y;
+                        pixelColor.z += reflectedStrike.pixel.z * strike.material.mirror.z;
                     }
 
                     strike.pixel.x = int(pixelColor.x+0.5);
@@ -335,7 +344,7 @@ Strike findStrike(Ray ray, Scene scene){           // To find intersections with
     return strike;
 }
 
-bool findShadowStrike(Ray ray, Scene scene){           // To find intersections with spheres, triangles and meshes
+bool findShadowStrike(Ray &ray, Scene &scene){           // To find intersections with spheres, triangles and meshes
 
     vector<Sphere> spheres = scene.spheres;
     vector<Triangle> triangles = scene.triangles;
@@ -376,7 +385,7 @@ bool findShadowStrike(Ray ray, Scene scene){           // To find intersections 
     return false;
 }
 
-Vec3f findAmbient(Material material, Vec3f ambientLight){
+Vec3f findAmbient(Material &material, Vec3f &ambientLight){
     
     Vec3f result;
 
@@ -387,11 +396,11 @@ Vec3f findAmbient(Material material, Vec3f ambientLight){
     return result;
 }
 
-Vec3f findIntersectionPoint(Ray ray, float t){
+Vec3f findIntersectionPoint(Ray &ray, float t){
     return vecSum(ray.origin,1,ray.direction,t);
 }
 
-Vec3f findIrradiance(Vec3f intersectionPoint, PointLight pointLight){
+Vec3f findIrradiance(Vec3f &intersectionPoint, PointLight &pointLight){
     Vec3f res;
     float distance = findLength(vecSum(intersectionPoint,-1,pointLight.position,1));
     
@@ -406,7 +415,7 @@ Vec3f findIrradiance(Vec3f intersectionPoint, PointLight pointLight){
     return res;    
 }
 
-Vec3f findDiffuse(Vec3f irradiance, PointLight pointLight, Strike strike, Vec3f surfaceNormal){
+Vec3f findDiffuse(Vec3f &irradiance, PointLight &pointLight, Strike &strike, Vec3f &surfaceNormal){
     Vec3f L = vecSum(pointLight.position,1,strike.intersectionPoint,-1);
 
     L = normalize(L);
@@ -425,7 +434,7 @@ Vec3f findDiffuse(Vec3f irradiance, PointLight pointLight, Strike strike, Vec3f 
     return res;
 }
 
-Vec3f findSpecular(Vec3f irradiance, PointLight pointLight, Strike strike, Vec3f surfaceNormal, Ray ray){
+Vec3f findSpecular(Vec3f &irradiance, PointLight &pointLight, Strike &strike, Vec3f &surfaceNormal, Ray &ray){
 
     Vec3f res;
     Vec3f L = vecSum(pointLight.position,1,strike.intersectionPoint,-1);
@@ -444,4 +453,24 @@ Vec3f findSpecular(Vec3f irradiance, PointLight pointLight, Strike strike, Vec3f
 
     return res;
 }
+
+Ray findReflectionRay(Ray &ray, Vec3f &surfaceNormal,Vec3f &intersectionPoint,Scene &scene){
+    Vec3f res;
+    Vec3f negated_ray_direction;
+
+    negated_ray_direction.x = -ray.direction.x;
+    negated_ray_direction.y = -ray.direction.y;
+    negated_ray_direction.z = -ray.direction.z;
+
+    float angle_n_ray = dotProduct(negated_ray_direction,surfaceNormal);
+    res = vecSum(ray.direction,1,surfaceNormal,2*angle_n_ray);
+    res = normalize(res);
+
+    Ray resultray;
+    resultray.direction = res;
+    resultray.origin = vecSum(intersectionPoint,1,surfaceNormal,scene.shadow_ray_epsilon);
+
+    return resultray;
+}
+
 
