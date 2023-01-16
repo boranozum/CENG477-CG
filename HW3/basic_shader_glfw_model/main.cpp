@@ -17,8 +17,14 @@
 
 using namespace std;
 
+typedef enum {EXPLODE, TRANSITION, IDLE} STATE;
+
 GLuint gProgram;
 int gWidth, gHeight;
+float y_coord = 0.0;
+int transition_column = 0;
+int transition_head = 0;
+STATE state = IDLE;
 
 struct Vertex
 {
@@ -454,6 +460,7 @@ void findMatches()
     for (int i = 0; i < grid_w; i++) {
         for (int j = 0; j < grid_h - 2; j++) {
             if (grid[i][j].color_index == grid[i][j+1].color_index && grid[i][j+1].color_index == grid[i][j+2].color_index) {
+                state = EXPLODE;
                 grid[i][j].will_explode = true;
                 grid[i][j+1].will_explode = true;
                 grid[i][j+2].will_explode = true;
@@ -463,6 +470,7 @@ void findMatches()
     for (int j = 0; j < grid_h; j++) {
         for (int i = 0; i < grid_w - 2; i++) {
             if (grid[i][j].color_index == grid[i+1][j].color_index && grid[i+1][j].color_index == grid[i+2][j].color_index) {
+                state = EXPLODE;
                 grid[i][j].will_explode = true;
                 grid[i+1][j].color_index = true;
                 grid[i+2][j].color_index = true;
@@ -485,60 +493,102 @@ void display()
         refresh = false;
     }
 
-	for (int i = 0; i < grid_w; i++)
+	for (int i = 0; i < grid.size(); i++)
     {
-        for (int j = 0; j < grid_h; j++)
+        for (int j = 0; j < grid[i].size(); j++)
         {
-            glLoadIdentity();
-            glTranslatef(grid[i][j].x, grid[i][j].y, -5);
-            glRotatef(angle, 0, 1, 0);
 
-            // glScalef(grid[i][j].size, grid[i][j].size, grid[i][j].size); 
+            bool render = true;
+
+            glLoadIdentity();
 
             GLint color = glGetUniformLocation(gProgram, "colorIndex");
-            glUniform1i(color, grid[i][j].color_index);
-
-            //findMatches();
-
-            if(grid[i][j].will_explode && !grid[i][j].exploded){
-                if(grid[i][j].size <= grid[i][j].explode_size){
-                    grid[i][j].size += grid[i][j].size*0.01;
-                    glScalef(grid[i][j].size, grid[i][j].size, grid[i][j].size); 
-                }
-                else{
-                    // grid[i][j].size = 25.0/48.0;
-                    grid[i][j].will_explode = false;
-                    grid[i][j].exploded = true;
-                }
-            }
-            else if (!grid[i][j].exploded){
+            glUniform1i(color, grid[i][j].color_index);;
+            
+            switch (state)
+            {
+            case IDLE:
+                glTranslatef(grid[i][j].x, grid[i][j].y, -5);
                 glScalef(grid[i][j].size, grid[i][j].size, grid[i][j].size); 
-            }
-            else{
-                if(j != grid_h-1){
-                    for (int k = j+1; k < grid_h; k++)
-                    {
-                        if(grid[i][k].y != grid[i][k-1].y){
-                            grid[i][k].y = grid[i][k].y - 0.05;
-                        }    
+                glRotatef(angle, 0, 1, 0);
 
-                        if(grid[i][k].y >= grid[i][k-1].y - 0.05 && grid[i][k].y <= grid[i][k-1].y + 0.05){
-                            grid[i][k].y = grid[i][k-1].y;
-                            grid[i][j].exploded = false;
-                            for(int l = j; l < grid_h; l++){
-                                grid[i][l] = grid[i][l+1];
-                            }
-                            grid[i][grid_h-1] = Cell(-10+(20.0/(grid_w+1))+20*i/(grid_w+1), (-10+(20.0/(grid_h+1))+20*grid_h/(grid_h+1)), rand() % 5);
-                            
-                        }
+                //findMatches();
+                
+                break;
+            
+            case EXPLODE:
+                glTranslatef(grid[i][j].x, grid[i][j].y, -5);
+                glRotatef(angle, 0, 1, 0);
+
+                if(grid[i][j].will_explode){
+                    if(grid[i][j].size <= grid[i][j].explode_size){
+                        grid[i][j].size += grid[i][j].size*0.01;
+                        glScalef(grid[i][j].size, grid[i][j].size, grid[i][j].size); 
+                    }
+                    else{
+                        // grid[i][j].size = 25.0/48.0;
+                        grid[i][j].will_explode = false;
+                        y_coord = grid[i][j].y;
+
+                        transition_column = i;
+                        transition_head = j+1;
+
+                        state = TRANSITION;
+                        Cell cell = Cell(-10+(20.0/(grid_w+1))+20*i/(grid_w+1), (-10+(20.0/(grid_h+1))+20*grid_h/(grid_h+1)), rand() % 5);
+                        grid[i].push_back(cell);
+                        render = false;
                     }
                 }
-                continue;
-                // else{
-                    
-                // }
-            }
+                else{
+                    glScalef(grid[i][j].size, grid[i][j].size, grid[i][j].size); 
+                }
+                
+            
+                break;
 
+            case TRANSITION:
+                if(i != transition_column){
+                    glTranslatef(grid[i][j].x, grid[i][j].y, -5);
+                    glRotatef(angle, 0, 1, 0);
+                    glScalef(grid[i][j].size, grid[i][j].size, grid[i][j].size); 
+                }
+                else if (i == transition_column && j < transition_head-1){
+                    glTranslatef(grid[i][j].x, grid[i][j].y, -5);
+                    glRotatef(angle, 0, 1, 0);
+                    glScalef(grid[i][j].size, grid[i][j].size, grid[i][j].size); 
+                }
+                else if (i == transition_column && j >= transition_head){
+                    grid[i][j].y -= 0.05;
+                    if(grid[i][transition_head].y >= y_coord - 0.05 && grid[i][transition_head].y <= y_coord + 0.05){
+                        state = IDLE;
+                        if(j == transition_head){
+                            grid[i][j].y = y_coord;
+                        }
+                        else{
+                            grid[i][j].y = grid[i][j-1].y;
+                        }
+
+                        grid[i].erase(grid[i].begin() + transition_head-1);
+                        
+                    }
+
+                    glTranslatef(grid[i][j].x, grid[i][j].y, -5);
+                    glRotatef(angle, 0, 1, 0);
+                    glScalef(grid[i][j].size, grid[i][j].size, grid[i][j].size); 
+                    
+                }
+
+                else{
+                    render = false;
+                }
+
+            default:
+                break;
+            }
+        
+            if (!render){
+                continue;
+            }
             drawModel();
         }
         
@@ -574,7 +624,7 @@ void keyboard(GLFWwindow* window, int key, int scancode, int action, int mods)
     }
 
     // check if the user pressed the R key
-    if (key == GLFW_KEY_R && action == GLFW_PRESS)
+    if (key == GLFW_KEY_R && action == GLFW_PRESS && state == IDLE)
     {
         // reset the modelview matrix
         glMatrixMode(GL_MODELVIEW);
@@ -596,8 +646,9 @@ void keyboard(GLFWwindow* window, int key, int scancode, int action, int mods)
 void mouse_callback(GLFWwindow* window, int button, int action, int mods)
 {
     cout << button << endl;
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && state == IDLE)
     {
+        state = EXPLODE;
         double xpos, ypos;
         glfwGetCursorPos(window, &xpos, &ypos);
         xpos = xpos / gWidth * 20 - 10;
