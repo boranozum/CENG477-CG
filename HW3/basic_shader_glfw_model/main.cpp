@@ -54,16 +54,35 @@ struct Face
     GLuint vIndex[3], tIndex[3], nIndex[3];
 };
 
+class Cell
+{
+    public:
+        GLint color_index;
+        GLfloat x, y;
+        float size;
+        float explode_size;
+        bool will_explode;
+        Cell(GLfloat inX, GLfloat inY, GLint inColor_index) : x(inX), y(inY), color_index(inColor_index){ 
+            size = 25.0/48.0;
+            explode_size = size*1.5;
+            will_explode = false;
+        }
+
+};
+
+vector<vector<Cell>> grid;
+
 vector<Vertex> gVertices;
 vector<Texture> gTextures;
 vector<Normal> gNormals;
 vector<Face> gFaces;
 
-vector<vector<GLint>> colorIndices;
-
 GLuint gVertexAttribBuffer, gIndexBuffer;
 GLint gInVertexLoc, gInNormalLoc;
 int gVertexDataSizeInBytes, gNormalDataSizeInBytes;
+bool refresh = false;
+float grid_w, grid_h;
+
 
 bool ParseObj(const string& fileName)
 {
@@ -376,25 +395,33 @@ void initVBO()
 }
 
 
-void init(float grid_w, float grid_h, const char* objFile) 
+void init(string objFile) 
 {
-	// ParseObj("armadillo.obj");
-	ParseObj(objFile);
+	ParseObj(objFile.c_str());
+	//ParseObj(objFile);
 
     glEnable(GL_DEPTH_TEST);
     initShaders();
     initVBO();
 
-    for (size_t i = 0; i < grid_w; i++)
+
+    for (float i = 0; i < grid_w; i++)
     {
-        vector<GLint> colorIndex;
-        for (size_t j = 0; j < grid_h; j++)
+
+        vector<Cell> row;
+        
+        for (float j = 0; j < grid_h; j++)
         {
             GLint index = rand() % 5;
-            colorIndex.push_back(index);
+            Cell cell = Cell(-10+(20.0/(grid_w+1))+20*i/(grid_w+1), -10+(20.0/(grid_h+1))+20*j/(grid_h+1), index);
+            cout << "cell coords: " << cell.x << ", " << cell.y << endl;
+            row.push_back(cell);
         }
-        colorIndices.push_back(colorIndex);
+
+        grid.push_back(row);
     }
+
+    
     
 }
 
@@ -407,9 +434,31 @@ void drawModel()
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(gVertexDataSizeInBytes));
 
 	glDrawElements(GL_TRIANGLES, gFaces.size() * 3, GL_UNSIGNED_INT, 0);
-}   
+}
 
-void display(float grid_w, float grid_h)
+void findMatches()
+{
+    for (int i = 0; i < grid_w; i++) {
+        for (int j = 0; j < grid_h - 2; j++) {
+            if (grid[i][j].color_index == grid[i][j+1].color_index && grid[i][j+1].color_index == grid[i][j+2].color_index) {
+                grid[i][j].will_explode = true;
+                grid[i][j+1].will_explode = true;
+                grid[i][j+2].will_explode = true;
+            }
+        }
+    }
+    for (int j = 0; j < grid_h; j++) {
+        for (int i = 0; i < grid_w - 2; i++) {
+            if (grid[i][j].color_index == grid[i+1][j].color_index && grid[i+1][j].color_index == grid[i+2][j].color_index) {
+                grid[i][j].will_explode = true;
+                grid[i+1][j].color_index = true;
+                grid[i+2][j].color_index = true;
+            }
+        }
+    }
+}
+
+void display()
 {
     glClearColor(0, 0, 0, 1);
     glClearDepth(1.0f);
@@ -418,18 +467,39 @@ void display(float grid_w, float grid_h)
 
 	static float angle = 0;
 
-	for (float i = 0; i < grid_w; i++)
+    if(refresh){
+        angle = 0;
+        refresh = false;
+    }
+
+	for (int i = 0; i < grid_w; i++)
     {
-        for (float j = 0; j < grid_h; j++)
+        for (int j = 0; j < grid_h; j++)
         {
             glLoadIdentity();
-            glTranslatef(-10+(20.0/(grid_w+1))+20*i/(grid_w+1), -10+(20.0/(grid_h+1))+20*j/(grid_h+1), -5);
+            glTranslatef(grid[i][j].x, grid[i][j].y, -5);
             glRotatef(angle, 0, 1, 0);
 
-            glScalef(25.0/48.0, 25.0/48.0, 25.0/48.0);
+            // glScalef(grid[i][j].size, grid[i][j].size, grid[i][j].size); 
 
             GLint color = glGetUniformLocation(gProgram, "colorIndex");
-            glUniform1i(color, colorIndices[i][j]);
+            glUniform1i(color, grid[i][j].color_index);
+
+            // findMatches(grid, grid_w, grid_h);
+
+            if(grid[i][j].will_explode){
+                if(grid[i][j].size <= grid[i][j].explode_size){
+                    grid[i][j].size += grid[i][j].size*0.01;
+                    glScalef(grid[i][j].size, grid[i][j].size, grid[i][j].size); 
+                }
+                else{
+                    grid[i][j].size = 25.0/48.0;
+                    grid[i][j].will_explode = false;
+                }
+            }
+            else{
+                glScalef(grid[i][j].size, grid[i][j].size, grid[i][j].size); 
+            }
 
             drawModel();
         }
@@ -462,15 +532,58 @@ void keyboard(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
     {
-        glfwSetWindowShouldClose(window, GL_TRUE);
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+
+    // check if the user pressed the R key
+    if (key == GLFW_KEY_R && action == GLFW_PRESS)
+    {
+        // reset the modelview matrix
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+
+        for (float i = 0; i < grid_w; i++)
+        {
+            for (float j = 0; j < grid_h; j++)
+            {
+                GLint index = rand() % 5;
+                grid[i][j].color_index = index;
+            }
+        }
+
+        refresh = true;
     }
 }
 
-void mainLoop(GLFWwindow* window,float grid_w, float grid_h)
+void mouse_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    cout << button << endl;
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+    {
+        double xpos, ypos;
+        glfwGetCursorPos(window, &xpos, &ypos);
+        xpos = xpos / gWidth * 20 - 10;
+        ypos = -ypos / gHeight * 20 + 10;
+        printf("xpos: %f, ypos: %f", xpos, ypos);
+        // find the grid cell that was clicked
+        for (int i = 0; i < grid_w; i++)
+        {
+            for (int j = 0; j < grid_h; j++)
+            {
+                if (xpos > grid[i][j].x - (10.0/grid_w) && xpos < grid[i][j].x + (10.0/grid_w) && ypos > grid[i][j].y - (10.0/grid_h) && ypos < grid[i][j].y + (10.0/grid_h))
+                {
+                    grid[i][j].will_explode = true;
+                }
+            }
+        }
+    }
+}
+
+void mainLoop(GLFWwindow* window)
 {
     while (!glfwWindowShouldClose(window))
     {
-        display(grid_w, grid_h);
+        display();
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -491,16 +604,15 @@ int main(int argc, char** argv)   // Create Main Function For Bringing It All To
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
     int width = 640, height = 600; 
-    float grid_width, grid_height;
     window = glfwCreateWindow(width, height, "Simple Example", NULL, NULL);
-    char* objFile;
+    string objFile;
 
     // take arguments and cast them to int
     if (argc > 1)
     {
-        grid_width = atoi(argv[1]);
-        grid_height = atoi(argv[2]);
-        strcpy(objFile, argv[3]);
+        grid_w = atoi(argv[1]);
+        grid_h = atoi(argv[2]);
+        objFile = argv[3];
     }
 
     if (!window)
@@ -525,12 +637,13 @@ int main(int argc, char** argv)   // Create Main Function For Bringing It All To
     strcat(rendererInfo, (const char*) glGetString(GL_VERSION));
     glfwSetWindowTitle(window, rendererInfo);
 
-    init(grid_width, grid_height, objFile);
+    init( objFile);
     glfwSetKeyCallback(window, keyboard);
+    glfwSetMouseButtonCallback(window, mouse_callback);
     glfwSetWindowSizeCallback(window, reshape);
 
     reshape(window, width, height); // need to call this once ourselves
-    mainLoop(window, grid_width, grid_height); // this does not return unless the window is closed
+    mainLoop(window); // this does not return unless the window is closed
 
     glfwDestroyWindow(window);
     glfwTerminate();
