@@ -86,7 +86,6 @@ class Cell
             exploded = rhs.exploded;
             return *this;
         }   
-
 };
 
 vector<vector<Cell>> grid;
