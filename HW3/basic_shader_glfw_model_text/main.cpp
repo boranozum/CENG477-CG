@@ -96,9 +96,14 @@ vector<vector<glm::vec3>> colors = {
         glm::vec3(0.1, 0.1, 0.1),
     },
     {
-        glm::vec3(0.5, 0.15, 0.4),
+        glm::vec3(0.25, 0.25, 0.2),
         glm::vec3(0.6, 0.6, 0.6),
         glm::vec3(0.01, 0.0, 0.01),
+    },
+    {
+        glm::vec3(0.2, 0.0, 0.3),
+        glm::vec3(0.4, 0.4, 0.4),
+        glm::vec3(0.01, 0.01, 0.01),
     },
 };
 
@@ -132,7 +137,6 @@ class Cell
             will_explode = false;
             exploded = false;
         }
-        // do assignment operator overloading
         Cell& operator=(const Cell& rhs) {
             x = rhs.x;
             y = rhs.y;
@@ -586,13 +590,12 @@ void init(string objFile)
         
         for (float j = 0; j < grid_h; j++)
         {
-            GLint index = rand() % 5;
+            GLint index = rand() % 6;
             Cell cell = Cell(-10+(20.0/(grid_w+1))+20*i/(grid_w+1), -10+(20.0/(grid_h+1))+20*j/(grid_h+1), index);
             if(grid_h*grid_w < 25){
                 cell.size = 1;
                 cell.explode_size = 1.5;
             }
-            cout << "cell coords: " << cell.x << ", " << cell.y << endl;
             row.push_back(cell);
         }
 
@@ -614,6 +617,15 @@ int getColumnCount(){
     return count;
 }
 
+int updateExplosion(int i, int j){
+    
+    if (!grid[i][j].will_explode) {
+        grid[i][j].will_explode = true;
+        return 1;
+    }
+    return 0;
+}
+
 int findMatches()
 {
     bool found = false;
@@ -622,20 +634,15 @@ int findMatches()
         for (int j = 0; j < grid_h - 2; j++) {
             if (grid[i][j].color_index == grid[i][j+1].color_index && grid[i][j+1].color_index == grid[i][j+2].color_index) {
                 // state = EXPLODE;
-                grid[i][j].will_explode = true;
-                grid[i][j+1].will_explode = true;
-                grid[i][j+2].will_explode = true;
+                count += updateExplosion(i, j);
+                count += updateExplosion(i, j+1);
+                count += updateExplosion(i, j+2);
+
                 found = true;
 
                 y_coords[i] = min(grid[i][j].y, y_coords[i]);
                 transition_columns[i] = true;
                 transition_heads[i] = min(j, transition_heads[i]);
-
-                if(count == 0){
-                    count = 3;
-                }
-                else
-                    count++;
             }
         }
     }
@@ -643,9 +650,11 @@ int findMatches()
         for (int i = 0; i < grid_w - 2; i++) {
             if (grid[i][j].color_index == grid[i+1][j].color_index && grid[i+1][j].color_index == grid[i+2][j].color_index) {
                 // state = EXPLODE;
-                grid[i][j].will_explode = true;
-                grid[i+1][j].will_explode = true;
-                grid[i+2][j].will_explode = true;
+                
+                count += updateExplosion(i, j);
+                count += updateExplosion(i+1, j);
+                count += updateExplosion(i+2, j);
+
                 found = true;
 
                 y_coords[i] = min(grid[i][j].y, y_coords[i]);
@@ -660,11 +669,7 @@ int findMatches()
                 transition_heads[i+1] = min(j, transition_heads[i+1]);
                 transition_heads[i+2] = min(j, transition_heads[i+2]);
 
-                if(count == 0) count = 3;
-                else count++;
-
-               
-
+                
             }
         }
     }
@@ -753,42 +758,10 @@ void display()
         refresh = false;
     }
 
-    // glUseProgram(gProgram[0]);
-	// //glLoadIdentity();
-	// //glTranslatef(-2, 0, -10);
-	// //glRotatef(angle, 0, 1, 0);
-
-    // glm::mat4 T = glm::translate(glm::mat4(1.f), glm::vec3(-2.f, 0.f, -10.f));
-    // glm::mat4 R = glm::rotate(glm::mat4(1.f), glm::radians(angle), glm::vec3(0, 1, 0));
-    // glm::mat4 modelMat = T * R;
-    // glm::mat4 modelMatInv = glm::transpose(glm::inverse(modelMat));
-    // glm::mat4 perspMat = glm::perspective(glm::radians(45.0f), 1.f, 1.0f, 100.0f);
-
-    // glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMat"), 1, GL_FALSE, glm::value_ptr(modelfindMat));
-    // glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMatInvTr"), 1, GL_FALSE, glm::value_ptr(modelMatInv));
-    // glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "perspectiveMat"), 1, GL_FALSE, glm::value_ptr(perspMat));
-
-    // drawModel();
-
-    // glUseProgram(gProgram[1]);
-	// //glLoadIdentity();
-	// //glTranslatef(2, 0, -10);
-	// //glRotatef(-angle, 0, 1, 0);
-
-    // T = glm::translate(glm::mat4(1.f), glm::vec3(2.f, 0.f, -10.f));
-    // R = glm::rotate(glm::mat4(1.f), glm::radians(-angle), glm::vec3(0, 1, 0));
-    // modelMat = T * R;
-    // modelMatInv = glm::transpose(glm::inverse(modelMat));
-
-    // glUniformMatrix4fv(glGetUniformLocation(gProgram[1], "modelingMat"), 1, GL_FALSE, glm::value_ptr(modelMat));
-    // glUniformMatrix4fv(glGetUniformLocation(gProgram[1], "modelingMatInvTr"), 1, GL_FALSE, glm::value_ptr(modelMatInv));
-    //glUniformMatrix4fv(glGetUniformLocation(gProgram[1], "perspectiveMat"), 1, GL_FALSE, glm::value_ptr(perspMat));
-
-    // drawModel();
-
-    vector<glm::mat4> modelMats;    
 
     for(float i = 0; i < grid.size(); i++){
+
+        bool inPlace = true;   
 
         for(float j = 0; j < grid[i].size(); j++){
 
@@ -823,7 +796,7 @@ void display()
                 lightPos = glm::vec3(grid[i][j].x, grid[i][j].y, 1);
                 glUniform3fv(glGetUniformLocation(gProgram[0], "lightPos"), 1, glm::value_ptr(lightPos));
 
-                // explosion_count = findMatches();
+                explosion_count = findMatches();
                 score += explosion_count;
 
                 break;
@@ -848,7 +821,7 @@ void display()
 
                         grid[i].erase(grid[i].begin() + j);
                         // Cell cell = Cell(-10+(20.0/(grid_w+1))+20*i/(grid_w+1), -10+(20.0/(grid_h+1))+20*j/(grid_h+1), index);
-                        Cell cell = Cell(-10+(20.0/(grid_w+1))+20*i/(grid_w+1), grid[i][grid_h-1].y+20.0/(grid_h+1), rand() % 5);
+                        Cell cell = Cell(-10+(20.0/(grid_w+1))+20*i/(grid_w+1), grid[i][grid_h-1].y+20.0/(grid_h+1), rand() % 6);
                         if(grid_h*grid_w < 25){
                             cell.size = 1;
                             cell.explode_size = 1.5;
@@ -885,24 +858,29 @@ void display()
                         R = glm::rotate(glm::mat4(1.f), glm::radians(-angle), glm::vec3(0, 1, 0));
                         modelMat = T * R * S;
                         modelMatInv = glm::transpose(glm::inverse(modelMat));
-                        grid[i][j].y -= 0.05f;
-                        if(grid[i][transition_heads[i]].y >= y_coords[i] - 0.05 && grid[i][transition_heads[i]].y <= y_coords[i] + 0.05){
 
-                            column_count--;
+                        GLfloat y_coord = -10+(20.0/(grid_h+1))+j*20.0/(grid_h+1);
+
+                        if(grid[i][j].y >= y_coord - 0.05 && grid[i][j].y <= y_coord + 0.05){
+
+                            if(j == grid_h-1){
+                                column_count--; 
+                                grid[i][j].y = y_coord;
+                                transition_columns[i] = false;
+                                y_coords[i] = grid[i][grid_h-1].y+10;
+                                transition_heads[i] = grid_h;                           
+                            }
+                            
                             if(column_count == 0){
                                 state = IDLE;
                             }
 
-                            if(j == transition_heads[i]){
-                                grid[i][j].y = y_coords[i];
-                            }
-                            else{
-                                grid[i][j].y = grid[i][j-1].y;
-                            } 
-                            transition_columns[i] = false;
-                            y_coords[i] = grid[i][grid_h-1].y+20;
-                            transition_heads[i] = grid_h;
                                         
+                        }
+
+                        else{
+                            grid[i][j].y -= 0.05f;
+
                         }
 
                     }
@@ -969,7 +947,7 @@ void keyboard(GLFWwindow* window, int key, int scancode, int action, int mods)
         {
             for (float j = 0; j < grid_h; j++)
             {
-                GLint index = rand() % 5;
+                GLint index = rand() % 6;
                 grid[i][j].color_index = index;
             }
         }
@@ -980,7 +958,6 @@ void keyboard(GLFWwindow* window, int key, int scancode, int action, int mods)
 
 void mouse_callback(GLFWwindow* window, int button, int action, int mods)
 {
-    cout << button << endl;
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && state == IDLE)
     {
         moves++;
@@ -994,13 +971,12 @@ void mouse_callback(GLFWwindow* window, int button, int action, int mods)
         {
             for (int j = 0; j < grid_h; j++)
             {
-                if (xpos > grid[i][j].x - (10.0/grid_w) && xpos < grid[i][j].x + (10.0/grid_w) && ypos > grid[i][j].y - (10.0/grid_h) && ypos < grid[i][j].y + (10.0/grid_h))
+                if (xpos > grid[i][j].x - (7.0/grid_w) && xpos < grid[i][j].x + (7.0/grid_w) && ypos > grid[i][j].y - (7.0/grid_h) && ypos < grid[i][j].y + (7.0/grid_h))
                 {
                     grid[i][j].will_explode = true;
                     y_coords[i] = grid[i][j].y;
                     transition_heads[i] = j;
                     transition_columns[i] = true;
-                    cout << i << " " << j << endl;
                 }
             }
         }
